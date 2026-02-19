@@ -1,0 +1,6 @@
+@EndUserText.label: 'Service def for root travel'
+define service ZSA_TRAVEL_FIN_SD {
+  expose ZSA_TRAVEL_FIN_C;
+  expose ZSA_BOOKING_FIN_C;
+  expose ZSA_BK_SUPP_FIN_C;
+}

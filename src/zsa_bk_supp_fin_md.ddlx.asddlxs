@@ -1,0 +1,31 @@
+@Metadata.layer: #CORE
+annotate entity ZSA_BK_SUPP_FIN_C with
+{
+  @UI.facet: [{id:'bksuppl',
+            purpose: #STANDARD,
+            type:#IDENTIFICATION_REFERENCE,
+            label: 'Booking Supplement',
+            position : 10  }]
+
+  @UI.hidden: true
+  BooksuppUuid;
+  @UI.hidden: true
+  TravelUuid;
+  @UI.hidden: true
+  BookingUuid;
+  @UI.lineItem: [{position:10,importance: #HIGH }]
+  @UI.identification: [{position:10, importance: #HIGH  }]
+  BookingSupplementId;
+  @UI.lineItem: [{position:20,importance: #HIGH }]
+  @UI.identification: [{position:20, importance: #HIGH  }]
+  SupplementId;
+  @UI.lineItem: [{position:30,importance: #HIGH }]
+  @UI.identification: [{position:30, importance: #HIGH  }]
+  Price;
+  //  CurrencyCode;
+  //  LocalLastChangedAt;
+  //  /* Associations */
+  //  _booking;
+  //  _travel;
+
+}

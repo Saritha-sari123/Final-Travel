@@ -1,0 +1,5 @@
+CLASS zbp_sa_travel_fin_i DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zsa_travel_fin_i.
+ENDCLASS.
+
+CLASS zbp_sa_travel_fin_i IMPLEMENTATION.
+ENDCLASS.

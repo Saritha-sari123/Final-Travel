@@ -1,0 +1,35 @@
+projection;
+strict ( 2 );
+use draft;
+define behavior for ZSA_TRAVEL_FIN_C alias travel
+{
+  use create;
+  use update;
+  use delete;
+
+  use action Edit;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+  use action Activate;
+
+  use association _booking { create;with draft; }
+}
+
+define behavior for ZSA_BOOKING_FIN_C alias booking
+{
+  use update;
+  use delete;
+
+  use association _travel{with draft;}
+  use association _bksuppl { create; with draft; }
+}
+
+define behavior for ZSA_BK_SUPP_FIN_C alias bksuppl
+{
+  use update;
+  use delete;
+
+  use association _travel{with draft;}
+  use association _booking{with draft;}
+}
