@@ -13,7 +13,7 @@ etag master LocalLastChangedAt
   update;
   delete;
   field ( numbering : managed, readonly ) TravelUuid;
-  field (readonly) TravelId;
+  field (readonly) TravelId , OverallStatus;
   association _booking { create; with draft; }
 
   draft action Edit;
@@ -22,7 +22,8 @@ etag master LocalLastChangedAt
   draft action Activate optimized;
   draft determine action Prepare;
 
-determination settravelid on save {create;}
+determination settravelid on save {create; update;}
+determination setoverallstatus on modify {create;}
 
   mapping for zsa_travel_fin
     {
@@ -54,10 +55,15 @@ etag master LocalLastChangedAt
 {
   update;
   delete;
-  field ( readonly ) TravelUuid;
+  field ( readonly ) TravelUuid , BookingId , BookingDate;
   field ( numbering : managed, readonly ) BookingUuid;
   association _travel {with draft;}
   association _bksuppl { create; with draft;}
+
+  determination setbookingid on save {create;}
+  determination setbookingdate on save {create;}
+
+
   mapping for zsa_booking_fin
     {
       BookingUuid        = booking_uuid;
