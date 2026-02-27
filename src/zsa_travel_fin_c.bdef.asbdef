@@ -13,6 +13,11 @@ define behavior for ZSA_TRAVEL_FIN_C alias travel
   use action Prepare;
   use action Activate;
 
+use action acceptTravel;
+use action rejectTravel;
+use action deductDiscount;
+use function GetDefaultsFordeductDiscount;
+
   use association _booking { create;with draft; }
 }
 

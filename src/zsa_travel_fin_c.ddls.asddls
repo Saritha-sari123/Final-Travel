@@ -26,5 +26,5 @@ define root view entity ZSA_TRAVEL_FIN_C
     LocalLastChangedAt,
     LastChangedAt,
     /* Associations */
-    _booking:redirected to composition child zsa_booking_fin_C
+    _booking:redirected to composition child ZSA_BOOKING_FIN_C
 }

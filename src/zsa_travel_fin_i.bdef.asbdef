@@ -25,6 +25,14 @@ etag master LocalLastChangedAt
 determination settravelid on save {create; update;}
 determination setoverallstatus on modify {create;}
 
+
+action acceptTravel result[1] $self;
+action rejectTravel result[1]$self;
+
+action deductDiscount parameter zsa_Fin_A_Discount result[1]$self {default function GetDefaultsFordeductDiscount;}
+
+
+
   mapping for zsa_travel_fin
     {
       TravelUuid         = travel_uuid;
@@ -90,10 +98,14 @@ etag master LocalLastChangedAt
 {
   update;
   delete;
-  field ( readonly ) TravelUuid, BookingUuid;
+  field ( readonly ) TravelUuid, BookingUuid , BookingSupplementId;
   field ( numbering : managed, readonly ) BooksuppUuid;
   association _travel {with draft;}
   association _booking{with draft;}
+
+  determination setbookingsupplid on save {create;}
+
+
   mapping for zsa_bk_supp_fin
     {
       BooksuppUuid        = booksupp_uuid;

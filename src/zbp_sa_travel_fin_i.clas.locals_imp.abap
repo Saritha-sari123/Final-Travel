@@ -1,3 +1,78 @@
+CLASS lhc_bksuppl DEFINITION INHERITING FROM cl_abap_behavior_handler.
+
+  PRIVATE SECTION.
+
+    METHODS setbookingsupplid FOR DETERMINE ON SAVE
+      IMPORTING keys FOR bksuppl~setbookingsupplid.
+
+ENDCLASS.
+
+CLASS lhc_bksuppl IMPLEMENTATION.
+
+  METHOD setbookingsupplid.
+
+    DATA: max_bookingsuppid   TYPE /dmo/booking_supplement_id,
+          bookingsuppliement  TYPE STRUCTURE FOR READ RESULT zsa_Bk_supp_fin_I,
+          bookingsuppl_update TYPE TABLE FOR UPDATE zsa_travel_fin_I\\bksuppl.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY bksuppl BY \_booking
+    FIELDS ( BookingUuid )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(bookings).
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY booking BY \_bksuppl
+    FIELDS ( BookingSupplementId )
+    WITH CORRESPONDING #( bookings )
+    LINK DATA(bookingsuppl_links)
+    RESULT DATA(bookingsuppliements).
+
+
+    LOOP AT bookings INTO DATA(booking).
+
+      max_bookingsuppid = '00'.
+
+      LOOP AT bookingsuppl_links INTO DATA(bookingsuppl_link) USING KEY id WHERE source-%tky = booking-%tky.
+
+        bookingsuppliement = bookingsuppliements[ KEY id
+                          %tky = bookingsuppl_link-target-%tky ].
+
+        IF bookingsuppliement-BookingSupplementId > max_bookingsuppid.
+          max_bookingsuppid = bookingsuppliement-BookingSupplementId.
+
+        ENDIF.
+      ENDLOOP.
+*
+      LOOP AT bookingsuppl_links INTO bookingsuppl_link USING KEY id WHERE source-%tky = booking-%tky.
+
+        bookingsuppliement = bookingsuppliements[ KEY id
+                          %tky = bookingsuppl_link-target-%tky ].
+
+        IF bookingsuppliement-BookingSupplementId IS INITIAL.
+          max_bookingsuppid += 1.
+          APPEND VALUE #( %tky = bookingsuppliement-%tky
+                           BookingSupplementId  = max_bookingsuppid
+                            ) TO bookingsuppl_update.
+
+
+        ENDIF.
+
+      ENDLOOP.
+    ENDLOOP.
+    " use modify EML to update the booking entity with the new booking id number which is max_bookingid
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY bksuppl
+    UPDATE FIELDS ( BookingSupplementId )
+    WITH bookingsuppl_update.
+
+
+  ENDMETHOD.
+
+ENDCLASS.
+
 CLASS lhc_booking DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -10,12 +85,30 @@ CLASS lhc_booking DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
 ENDCLASS.
 
+
 CLASS lhc_booking IMPLEMENTATION.
 
   METHOD setbookingdate.
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY booking
+    FIELDS ( BookingDate )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(dates).
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY booking
+    UPDATE FIELDS ( BookingDate )
+    WITH VALUE #( FOR date IN dates (
+                 %tky = date-%tky
+                 BookingDate = sy-datum
+                  ) ).
+
+
   ENDMETHOD.
 
   METHOD setbookingid.
+
+
 
     DATA : max_bookingid   TYPE /dmo/booking_id,
            booking         TYPE STRUCTURE FOR READ RESULT zsa_booking_fin_i,
@@ -29,15 +122,18 @@ CLASS lhc_booking IMPLEMENTATION.
     WITH CORRESPONDING #( keys  )
     RESULT DATA(travels).
 
+
+
     " now reading all the booking related to travel which we got from above travel table
 
-    READ ENTITIES OF  zsa_travel_fin_i IN LOCAL MODE
+    READ ENTITIES OF  zsa_travel_fin_I IN LOCAL MODE
     ENTITY travel BY \_booking
     FIELDS ( BookingId )
-    WITH CORRESPONDING #( keys )
+    WITH CORRESPONDING #( travels )
     LINK DATA(booking_links)
     RESULT DATA(bookings).
 
+* deLETE bookings wHERE BookingId is not inITIAL.
 
     LOOP AT travels INTO DATA(travel).
 
@@ -53,7 +149,7 @@ CLASS lhc_booking IMPLEMENTATION.
 
         ENDIF.
       ENDLOOP.
-
+*
       LOOP AT booking_links INTO booking_link USING KEY id WHERE source-%tky = travel-%tky.
 
         booking = bookings[ KEY id
@@ -61,8 +157,6 @@ CLASS lhc_booking IMPLEMENTATION.
 
         IF booking-BookingId IS INITIAL.
           max_bookingid += 1.
-
-
           APPEND VALUE #( %tky = booking-%tky
                             bookingid = max_bookingid
                             ) TO bookings_update.
@@ -72,7 +166,7 @@ CLASS lhc_booking IMPLEMENTATION.
 
       ENDLOOP.
     ENDLOOP.
-    " use modify eml to update the booking entity with the new booking id num which is max_bookingid
+    " use modify EML to update the booking entity with the new booking id number which is max_bookingid
 
     MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
     ENTITY booking
@@ -81,10 +175,10 @@ CLASS lhc_booking IMPLEMENTATION.
 
 
 
+
   ENDMETHOD.
 
 ENDCLASS.
-
 CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
@@ -97,8 +191,18 @@ CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys FOR travel~settravelid.
     METHODS setoverallstatus FOR DETERMINE ON MODIFY
       IMPORTING keys FOR travel~setoverallstatus.
+    METHODS accepttravel FOR MODIFY
+      IMPORTING keys FOR ACTION travel~accepttravel RESULT result.
+
+    METHODS rejecttravel FOR MODIFY
+      IMPORTING keys FOR ACTION travel~rejecttravel RESULT result.
+    METHODS deductdiscount FOR MODIFY
+      IMPORTING keys FOR ACTION travel~deductdiscount RESULT result.
+    METHODS getdefaultsfordeductdiscount FOR READ
+      IMPORTING keys FOR FUNCTION travel~getdefaultsfordeductdiscount RESULT result.
 
 ENDCLASS.
+
 
 CLASS lhc_travel IMPLEMENTATION.
 
@@ -150,6 +254,109 @@ CLASS lhc_travel IMPLEMENTATION.
      OverallStatus = 'O'  ) ).
 
 
+
+  ENDMETHOD.
+
+  METHOD acceptTravel.
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    UPDATE FIELDS ( OverallStatus )
+    WITH VALUE #( FOR key IN keys ( %tky = key-%tky
+                                    OverallStatus = 'A'
+     ) ).
+
+
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    ALL FIELDS WITH  CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+    result = VALUE #( FOR travel  IN travels ( %tky = travel-%tky
+                                                %param = travel ) ).
+  ENDMETHOD.
+
+  METHOD rejectTravel.
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+  ENTITY travel
+  UPDATE FIELDS ( OverallStatus )
+  WITH VALUE #( FOR key IN keys ( %tky = key-%tky
+                                  OverallStatus = 'R'
+   ) ).
+
+
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    ALL FIELDS WITH  CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+    result = VALUE #( FOR travel  IN travels ( %tky = travel-%tky
+                                                %param = travel ) ).
+
+  ENDMETHOD.
+
+  METHOD deductDiscount.
+
+    DATA: travel_for_update TYPE TABLE FOR UPDATE  zsa_travel_fin_i .
+    DATA(keys_temp) = keys.
+
+    LOOP AT  keys_temp ASSIGNING FIELD-SYMBOL(<key_temp>) WHERE %param-discount_percent IS INITIAL OR
+                                                                %param-discount_percent > 100 OR
+                                                                %param-discount_percent < 0 .
+
+      APPEND VALUE #( %tky = <key_temp>-%tky  ) TO failed-travel.
+      APPEND VALUE #( %tky = <key_temp>-%tky
+                      %msg = new_message_with_text( text = 'Invalid Discount Percentage'
+                                                     severity = if_abap_behv_message=>severity-error )
+                      %element-totalprice = if_abap_behv=>mk-on
+                      %action-deductDiscount = if_abap_behv=>mk-on ) TO reported-travel.
+      DELETE keys_temp.
+    ENDLOOP.
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    FIELDS ( TotalPrice )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_travels).
+
+    DATA lv_percentage TYPE decfloat16.
+
+    LOOP AT lt_travels ASSIGNING FIELD-SYMBOL(<fs_travel>).
+
+
+
+
+
+
+    ENDLOOP.
+
+
+  ENDMETHOD.
+
+  METHOD GetDefaultsFordeductDiscount.
+
+    READ ENTITIES OF zsa_travel_fin_i  IN LOCAL MODE
+    ENTITY travel
+    FIELDS ( TotalPrice )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+    LOOP AT travels INTO DATA(travel).
+
+      IF  travel-TotalPrice >= 4000.
+        APPEND VALUE #( %tky = travel-%tky
+                        %param-discount_percent = 30 ) TO result.
+      ELSE.
+
+        APPEND VALUE #( %tky = travel-%tky
+                                %param-discount_percent = 15 ) TO result.
+      ENDIF.
+    ENDLOOP.
 
   ENDMETHOD.
 
