@@ -200,6 +200,8 @@ CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys FOR ACTION travel~deductdiscount RESULT result.
     METHODS getdefaultsfordeductdiscount FOR READ
       IMPORTING keys FOR FUNCTION travel~getdefaultsfordeductdiscount RESULT result.
+    METHODS recalctotalprice FOR MODIFY
+      IMPORTING keys FOR ACTION travel~recalctotalprice.
 
 ENDCLASS.
 
@@ -317,6 +319,7 @@ CLASS lhc_travel IMPLEMENTATION.
       DELETE keys_temp.
     ENDLOOP.
 
+    CHECK keys_temp IS NOT INITIAL.
 
     READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
     ENTITY travel
@@ -328,13 +331,30 @@ CLASS lhc_travel IMPLEMENTATION.
 
     LOOP AT lt_travels ASSIGNING FIELD-SYMBOL(<fs_travel>).
 
+      DATA(lv_discount_percent) = keys[ KEY id  %tky = <fs_travel>-%tky ]-%param-discount_percent.
 
+      lv_percentage = lv_discount_percent / 100.
 
+      DATA(reduced_value) = <fs_travel>-TotalPrice * lv_percentage .
+      reduced_value = <fs_travel>-TotalPrice - reduced_value.
 
+      APPEND VALUE #( %tky = <fs_travel>-%tky
+                              totalprice = reduced_value  ) TO travel_for_update.
 
 
     ENDLOOP.
 
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    UPDATE FIELDS ( TotalPrice )
+    WITH travel_for_update.
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    ALL FIELDS WITH
+    CORRESPONDING #( keys )
+    RESULT DATA(lt_travel_update).
 
   ENDMETHOD.
 
@@ -357,6 +377,99 @@ CLASS lhc_travel IMPLEMENTATION.
                                 %param-discount_percent = 15 ) TO result.
       ENDIF.
     ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD reCalcTotalprice.
+
+    TYPES:BEGIN OF ty_amount_curncy_code,
+            amount       TYPE /dmo/total_price,
+            currencycode TYPE /dmo/currency_code,
+          END OF ty_amount_curncy_code.
+
+    DATA: amounts_per_currencycode TYPE STANDARD TABLE OF ty_amount_curncy_code.
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    FIELDS ( BookingFee CurrencyCode )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel BY \_booking
+    FIELDS ( FlightPrice CurrencyCode )
+    WITH CORRESPONDING #( travels )
+    RESULT DATA(bookings)
+    LINK DATA(booking_links).
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY booking BY \_bksuppl
+    FIELDS ( Price CurrencyCode )
+    WITH CORRESPONDING #( bookings )
+    RESULT DATA(bookingsuppliements)
+    LINK DATA(bk_suppllinks).
+
+    LOOP AT travels ASSIGNING FIELD-SYMBOL(<travel>).
+
+      amounts_per_currencycode = VALUE #( ( amount = <travel>-BookingFee
+                                                  currencycode = <travel>-CurrencyCode  ) ).
+
+
+
+
+
+      LOOP AT booking_links INTO DATA(booking_link) USING KEY id WHERE source-%tky = <travel>-%tky.
+        DATA(booking) = bookings[ KEY id %tky = booking_link-target-%tky ].
+
+
+        COLLECT VALUE ty_amount_curncy_code( amount = booking-FlightPrice
+                                                     currencycode = booking-CurrencyCode ) INTO amounts_per_currencycode.
+
+
+        LOOP AT bk_suppllinks INTO DATA(bk_suppllink) USING KEY id WHERE source-%tky = booking-%tky.
+
+          DATA(bookingsuppliement) = bookingsuppliements[ KEY id %tky = bk_suppllink-target-%tky ].
+
+          COLLECT VALUE ty_amount_curncy_code( amount = bookingsuppliement-Price
+                                                         currencycode = bookingsuppliement-CurrencyCode ) INTO amounts_per_currencycode.
+
+        ENDLOOP.
+
+      ENDLOOP.
+    ENDLOOP.
+
+    DELETE amounts_per_currencycode WHERE currencycode IS INITIAL.
+
+    LOOP AT amounts_per_currencycode INTO DATA(amount_per_currencycode).
+
+      IF <travel>-CurrencyCode = amount_per_currencycode-currencycode.
+
+        <travel>-TotalPrice += amount_per_currencycode-amount.
+      ELSE.
+
+        /dmo/cl_flight_amdp=>convert_currency(
+          EXPORTING
+            iv_amount               = amount_per_currencycode-amount
+            iv_currency_code_source = amount_per_currencycode-currencycode
+            iv_currency_code_target = <travel>-CurrencyCode
+            iv_exchange_rate_date   = cl_abap_context_info=>get_system_date( )
+          IMPORTING
+            ev_amount               = DATA(total_booking_price_per_curr)
+        ).
+
+
+        <travel>-TotalPrice += total_booking_price_per_curr.
+
+      ENDIF.
+
+      MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+      ENTITY travel
+      UPDATE FIELDS ( TotalPrice  )
+      WITH CORRESPONDING #( travels ).
+
+    ENDLOOP.
+
+
 
   ENDMETHOD.
 

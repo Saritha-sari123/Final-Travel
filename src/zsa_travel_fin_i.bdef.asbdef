@@ -30,6 +30,8 @@ action acceptTravel result[1] $self;
 action rejectTravel result[1]$self;
 
 action deductDiscount parameter zsa_Fin_A_Discount result[1]$self {default function GetDefaultsFordeductDiscount;}
+internal action reCalcTotalprice;
+
 
 
 
