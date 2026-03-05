@@ -5,7 +5,7 @@ define behavior for ZSA_TRAVEL_FIN_I alias travel
 persistent table zsa_travel_fin
 draft table zsa_travel_fin_d
 lock master
-total etag  LastChangedAt
+total etag LastChangedAt
 authorization master ( global, instance )
 etag master LocalLastChangedAt
 {
@@ -13,25 +13,55 @@ etag master LocalLastChangedAt
   update;
   delete;
   field ( numbering : managed, readonly ) TravelUuid;
-  field (readonly) TravelId , OverallStatus;
+  field ( readonly ) TravelId, OverallStatus;
   association _booking { create; with draft; }
 
   draft action Edit;
   draft action Resume;
   draft action Discard;
   draft action Activate optimized;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation validateCustomer;
+    validation validateAgencyid;
+    validation validatedates;
+  }
 
-determination settravelid on save {create; update;}
-determination setoverallstatus on modify {create;}
+
+  // ddeterminations
+  determination settravelid on save { create; update; }
+  determination setoverallstatus on modify { create; }
+  determination calculateTotalPrice on modify { create; field BookingFee, CurrencyCode; }
 
 
-action acceptTravel result[1] $self;
-action rejectTravel result[1]$self;
 
-action deductDiscount parameter zsa_Fin_A_Discount result[1]$self {default function GetDefaultsFordeductDiscount;}
-internal action reCalcTotalprice;
 
+  // validations
+  validation validateCustomer on save { create; field CustomerId; }
+  validation validateAgencyid on save { create; field AgencyId; }
+  validation validatedates on save { create; field BeginDate, EndDate; }
+
+
+  //actions
+
+  action acceptTravel result [1] $self;
+  action rejectTravel result [1] $self;
+  action deductDiscount parameter zsa_Fin_A_Discount result [1] $self { default function GetDefaultsFordeductDiscount; }
+
+  determine action validateCustomerid { validation validateCustomer; }
+  determine action validateAgency { validation validateAgencyid; }
+  determine action validatedatesVal { validation validatedates; }
+
+
+  internal action reCalcTotalprice;
+  side effects
+  {
+
+    field BookingFee affects field TotalPrice;
+    determine action validateCustomerid executed on field CustomerId affects messages;
+    determine action validateAgency executed on field AgencyId affects messages;
+    determine action validatedatesVal executed on field BeginDate, field EndDate affects messages;
+  }
 
 
 
@@ -58,22 +88,30 @@ internal action reCalcTotalprice;
 
 define behavior for ZSA_BOOKING_FIN_I alias booking
 persistent table zsa_booking_fin
-draft table zsa_bking_fin_D
+draft table zsa_bking_fin_d
 lock dependent by _travel
 authorization dependent by _travel
 etag master LocalLastChangedAt
 {
   update;
   delete;
-  field ( readonly ) TravelUuid , BookingId , BookingDate;
+  field ( readonly ) TravelUuid, BookingId, BookingDate;
   field ( numbering : managed, readonly ) BookingUuid;
-  association _travel {with draft;}
-  association _bksuppl { create; with draft;}
+  association _travel { with draft; }
+  association _bksuppl { create; with draft; }
 
-  determination setbookingid on save {create;}
-  determination setbookingdate on save {create;}
+  determination setbookingid on save { create; }
+  determination setbookingdate on save { create; }
+
+  determination calculateTotalPrice on modify { create; field FlightPrice, CurrencyCode; }
 
 
+  side effects
+  {
+
+    field FlightPrice affects field _travel.TotalPrice;
+
+  }
   mapping for zsa_booking_fin
     {
       BookingUuid        = booking_uuid;
@@ -93,20 +131,29 @@ etag master LocalLastChangedAt
 
 define behavior for ZSA_BK_SUPP_FIN_I alias bksuppl
 persistent table zsa_bk_supp_fin
-draft table zsa_bksupl_fin_D
+draft table zsa_bksupl_fin_d
 lock dependent by _travel
 authorization dependent by _travel
 etag master LocalLastChangedAt
 {
   update;
   delete;
-  field ( readonly ) TravelUuid, BookingUuid , BookingSupplementId;
+  field ( readonly ) TravelUuid, BookingUuid, BookingSupplementId;
   field ( numbering : managed, readonly ) BooksuppUuid;
-  association _travel {with draft;}
-  association _booking{with draft;}
+  association _travel { with draft; }
+  association _booking { with draft; }
 
-  determination setbookingsupplid on save {create;}
+  determination setbookingsupplid on save { create; }
 
+  determination calculateTotalPrice on modify { create; field Price, CurrencyCode; }
+
+
+  side effects
+  {
+
+    field Price affects field _travel.TotalPrice;
+
+  }
 
   mapping for zsa_bk_supp_fin
     {

@@ -4,6 +4,8 @@ CLASS lhc_bksuppl DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS setbookingsupplid FOR DETERMINE ON SAVE
       IMPORTING keys FOR bksuppl~setbookingsupplid.
+    METHODS calculatetotalprice FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR bksuppl~calculatetotalprice.
 
 ENDCLASS.
 
@@ -71,6 +73,21 @@ CLASS lhc_bksuppl IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD calculateTotalPrice.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+  ENTITY bksuppl BY \_booking
+  FIELDS ( TravelUuid )
+  WITH CORRESPONDING #( keys )
+  RESULT DATA(travels).
+
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+      ENTITY travel
+      EXECUTE reCalcTotalprice
+      FROM CORRESPONDING #( travels ).
+  ENDMETHOD.
+
 ENDCLASS.
 
 CLASS lhc_booking DEFINITION INHERITING FROM cl_abap_behavior_handler.
@@ -82,6 +99,8 @@ CLASS lhc_booking DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS setbookingid FOR DETERMINE ON SAVE
       IMPORTING keys FOR booking~setbookingid.
+    METHODS calculatetotalprice FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR booking~calculatetotalprice.
 
 ENDCLASS.
 
@@ -178,6 +197,22 @@ CLASS lhc_booking IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD calculateTotalPrice.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY booking BY \_travel
+    FIELDS ( TravelUuid )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+      ENTITY travel
+      EXECUTE reCalcTotalprice
+      FROM CORRESPONDING #( travels ).
+
+  ENDMETHOD.
+
 ENDCLASS.
 CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
@@ -202,6 +237,15 @@ CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys FOR FUNCTION travel~getdefaultsfordeductdiscount RESULT result.
     METHODS recalctotalprice FOR MODIFY
       IMPORTING keys FOR ACTION travel~recalctotalprice.
+    METHODS calculatetotalprice FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR travel~calculatetotalprice.
+    METHODS validatecustomer FOR VALIDATE ON SAVE
+      IMPORTING keys FOR travel~validatecustomer.
+    METHODS validateagencyid FOR VALIDATE ON SAVE
+      IMPORTING keys FOR travel~validateagencyid.
+
+    METHODS validatedates FOR VALIDATE ON SAVE
+      IMPORTING keys FOR travel~validatedates.
 
 ENDCLASS.
 
@@ -473,4 +517,159 @@ CLASS lhc_travel IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD calculateTotalPrice.
+
+    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    EXECUTE reCalcTotalprice
+    FROM CORRESPONDING #( keys ).
+
+
+  ENDMETHOD.
+
+  METHOD validateCustomer.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+    ENTITY travel
+    FIELDS ( CustomerId )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(travels).
+
+    DATA : customers TYPE SORTED TABLE OF /dmo/customer WITH UNIQUE KEY customer_id.
+
+    customers = CORRESPONDING #( travels DISCARDING DUPLICATES MAPPING customer_id = CustomerId ).
+
+    SELECT FROM /dmo/customer FIELDS customer_id
+    FOR ALL ENTRIES IN @customers
+    WHERE customer_id = @customers-customer_id
+    INTO TABLE @DATA(valid_customer).
+    LOOP AT travels INTO DATA(travel).
+
+      APPEND VALUE #( %tky = travel-%tky
+                      %state_area = 'Validate Customer' ) TO reported-travel.
+
+      IF travel-CustomerId IS NOT INITIAL AND NOT line_exists( valid_customer[ customer_id = travel-CustomerId ] ).
+        APPEND VALUE #( %tky = travel-%tky ) TO failed-travel.
+        APPEND VALUE #( %tky = travel-%tky
+         %state_area = 'Validate Customer'
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = |'In Valid Customer ' { travel-CustomerId }|
+                               )
+
+                        ) TO reported-travel.
+
+      ENDIF.
+
+
+    ENDLOOP.
+
+
+  ENDMETHOD.
+
+  METHOD validateAgencyid.
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+  ENTITY travel
+  FIELDS ( AgencyId )
+  WITH CORRESPONDING #( keys )
+  RESULT DATA(travels).
+
+    DATA : agencyid TYPE SORTED TABLE OF /dmo/agency WITH UNIQUE KEY agency_id.
+
+    agencyid = CORRESPONDING #( travels DISCARDING DUPLICATES MAPPING agency_id = AgencyId ).
+
+    SELECT FROM /dmo/agency FIELDS agency_id
+    FOR ALL ENTRIES IN @agencyid
+    WHERE agency_id = @agencyid-agency_id
+    INTO TABLE @DATA(valid_agencyid).
+    LOOP AT travels INTO DATA(travel).
+
+      APPEND VALUE #( %tky = travel-%tky
+                            %state_area = 'Validate Agency' ) TO reported-travel.
+
+
+      IF travel-AgencyId IS NOT INITIAL AND NOT line_exists( valid_agencyid[ agency_id = travel-AgencyId ] ).
+        APPEND VALUE #( %tky = travel-%tky ) TO failed-travel.
+        APPEND VALUE #( %tky = travel-%tky
+        %state_area = 'Validate Agency'
+                        %msg = new_message_with_text(
+                                 severity = if_abap_behv_message=>severity-error
+                                 text     = |'InValid Agent ' { travel-AgencyId }|
+                               )
+
+                        ) TO reported-travel.
+
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD validatedates.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+ENTITY travel
+FIELDS ( BeginDate  EndDate )
+WITH CORRESPONDING #( keys )
+RESULT DATA(travels).
+
+    LOOP AT travels INTO DATA(travel).
+
+      APPEND VALUE #( %tky = travel-%tky
+                        %state_area = 'Validate Dates' ) TO reported-travel.
+
+
+      IF travel-BeginDate IS INITIAL.
+
+        APPEND VALUE #( %tky = travel-%tky ) TO failed-travel.
+        APPEND VALUE #(  %tky = travel-%tky
+
+                       %msg = new_message_with_text(
+                       severity = if_abap_behv_message=>severity-error
+                       text = |Begin date should not be blank|
+                          )
+                       %element-BeginDate = if_abap_behv=>mk-on
+                       %state_area = 'Validate Dates'
+                       ) TO reported-travel.
+
+      ENDIF.
+      IF travel-EndDate IS INITIAL.
+
+
+        APPEND VALUE #( %tky = travel-%tky ) TO failed-travel.
+        APPEND VALUE #(  %tky = travel-%tky
+
+                       %msg = new_message_with_text(
+                       severity = if_abap_behv_message=>severity-error
+                       text = |END date should not be blank |
+                          )
+                       %element-EndDate = if_abap_behv=>mk-on
+                       %state_area = 'Validate Dates'
+                       ) TO reported-travel.
+
+
+      ENDIF.
+
+      IF travel-EndDate < travel-BeginDate AND travel-BeginDate IS NOT INITIAL
+                                           AND travel-EndDate IS NOT INITIAL .
+
+
+        APPEND VALUE #( %tky = travel-%tky ) TO failed-travel.
+        APPEND VALUE #(  %tky = travel-%tky
+
+                       %msg = new_message_with_text(
+                       severity = if_abap_behv_message=>severity-error
+                       text = |END date should not be less than Begin date |
+                          )
+                       %element-EndDate = if_abap_behv=>mk-on
+                        %element-BeginDate = if_abap_behv=>mk-on
+                         %state_area = 'Validate Dates'
+                       ) TO reported-travel.
+
+
+
+      ENDIF.
+
+    ENDLOOP.
+  ENDMETHOD.
+*
 ENDCLASS.
