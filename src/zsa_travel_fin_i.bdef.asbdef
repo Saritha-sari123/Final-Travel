@@ -14,8 +14,8 @@ etag master LocalLastChangedAt
   update;
   delete;
   field ( numbering : managed, readonly ) TravelUuid;
-  field (mandatory : create , readonly : update ) TravelId ,OverallStatus;
-//  field ( readonly ) TravelId, OverallStatus;
+//  field (mandatory : create , readonly : update ) TravelId ,OverallStatus;
+  field ( readonly ) TravelId, OverallStatus;
   field (features : instance) BookingFee;
   association _booking { create; with draft; }
 

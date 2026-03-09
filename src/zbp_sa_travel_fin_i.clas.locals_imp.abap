@@ -34,12 +34,17 @@ CLASS lsc_zsa_travel_fin_i IMPLEMENTATION.
           <lfs_travel_log>-changed_filed_name = 'Booking Fee'.
           <lfs_travel_log>-changed_value = create-travel[ 1 ]-BookingFee.
 
+
+          <lfs_travel_log>-travel_id = create-travel[ 1 ]-TravelId.
+
         ENDIF.
 
         IF create-travel[ 1 ]-%control-AgencyId = cl_abap_behv=>flag_changed.
 
           <lfs_travel_log>-changed_filed_name = 'Agency Id'.
           <lfs_travel_log>-changed_value = create-travel[ 1 ]-AgencyId.
+
+
 
         ENDIF.
         APPEND <lfs_travel_log> TO travel_log_create.
@@ -50,7 +55,34 @@ CLASS lsc_zsa_travel_fin_i IMPLEMENTATION.
 
     ENDIF.
     IF update-travel IS NOT INITIAL.
+      travel_log = CORRESPONDING #( update-travel ).
+      LOOP AT travel_log ASSIGNING FIELD-SYMBOL(<lfs_travel_update>).
+        <lfs_travel_update>-changing_operation = 'UPDATE'.
+        GET TIME STAMP FIELD <lfs_travel_update>-created_at.
 
+        TRY.
+            <lfs_travel_update>-change_id =  cl_system_uuid=>create_uuid_x16_static(  ).
+          CATCH  cx_uuid_error .
+
+
+        ENDTRY.
+
+        IF create-travel[ 1 ]-%control-AgencyId = cl_abap_behv=>flag_changed.
+
+          <lfs_travel_update>-changed_filed_name = 'Booking Fee'.
+          <lfs_travel_update>-changed_value = update-travel[ 1 ]-BookingFee.
+
+
+          <lfs_travel_update>-travel_id = create-travel[ 1 ]-TravelId.
+
+        ENDIF.
+
+        APPEND <lfs_travel_update> TO travel_log_update.
+
+
+      ENDLOOP.
+
+      MODIFY zsa_travel_log FROM TABLE @travel_log_update.
 
     ENDIF.
 

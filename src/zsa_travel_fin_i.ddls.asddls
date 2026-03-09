@@ -5,6 +5,8 @@
 define root view entity ZSA_TRAVEL_FIN_I
   as select from zsa_travel_fin
   composition [0..*] of ZSA_BOOKING_FIN_I as _booking
+
+  association [0..1] to /DMO/I_Customer   as _Customer on $projection.CustomerId = _Customer.CustomerID
 {
   key travel_uuid           as TravelUuid,
       travel_id             as TravelId,
@@ -29,5 +31,6 @@ define root view entity ZSA_TRAVEL_FIN_I
       local_last_changed_at as LocalLastChangedAt,
       @Semantics.systemDateTime.lastChangedAt: true
       last_changed_at       as LastChangedAt,
-      _booking
+      _booking,
+      _Customer
 }

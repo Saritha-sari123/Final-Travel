@@ -31,12 +31,19 @@ annotate entity ZSA_BOOKING_FIN_C with
   BookingDate;
     @UI.lineItem: [{position: 30, importance: #HIGH  }]
   @UI.identification: [{position: 30, importance: #HIGH    }]
+  @Consumption.valueHelpDefinition: [{entity: { name: 'Zsa_Customer_VH' , element: 'CustomerID' } ,useForValidation: true }]
   CustomerId;
     @UI.lineItem: [{position: 40, importance: #HIGH  }]
   @UI.identification: [{position: 40, importance: #HIGH    }]
+  @Consumption.valueHelpDefinition: [{entity: { name: '/DMO/I_Flight_StdVH' , element: 'AirlineID' }  }]
   CarrierId;
     @UI.lineItem: [{position: 50, importance: #HIGH  }]
   @UI.identification: [{position: 50, importance: #HIGH    }]
+   @Consumption.valueHelpDefinition: [{entity: { name: '/DMO/I_Flight_StdVH' , element: 'ConnectionID' },
+                                     additionalBinding: [{ localElement: 'CarrierId',element: 'AirlineID',usage: #FILTER_AND_RESULT   },
+                                      { localElement: 'FlightDate',element: 'FlightDate',usage: #RESULT } ,
+                                      { localElement: 'FlightPrice', element: 'Price', usage:#RESULT  },
+                                      { localElement: 'CurrencyCode' ,element: 'CurrencyCode', usage: #RESULT}] }]
   ConnectionId;
     @UI.lineItem: [{position: 60, importance: #HIGH  }]
   @UI.identification: [{position:60, importance: #HIGH    }]

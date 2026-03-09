@@ -10,6 +10,8 @@ define root view entity ZSA_TRAVEL_FIN_C
     key TravelUuid,
     TravelId,
     AgencyId,
+    @ObjectModel.text.element: [ 'CustomerName' ]
+    @UI.textArrangement: #TEXT_LAST
     CustomerId,
     BeginDate,
     EndDate,
@@ -25,6 +27,7 @@ define root view entity ZSA_TRAVEL_FIN_C
     LocalLastChangedBy,
     LocalLastChangedAt,
     LastChangedAt,
+    _Customer.FirstName as CustomerName,
     /* Associations */
     _booking:redirected to composition child ZSA_BOOKING_FIN_C
 }
