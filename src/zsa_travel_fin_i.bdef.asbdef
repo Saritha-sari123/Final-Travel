@@ -3,6 +3,7 @@ strict ( 2 );
 with draft;
 define behavior for ZSA_TRAVEL_FIN_I alias travel
 persistent table zsa_travel_fin
+with additional save
 draft table zsa_travel_fin_d
 lock master
 total etag LastChangedAt
@@ -13,7 +14,9 @@ etag master LocalLastChangedAt
   update;
   delete;
   field ( numbering : managed, readonly ) TravelUuid;
-  field ( readonly ) TravelId, OverallStatus;
+  field (mandatory : create , readonly : update ) TravelId ,OverallStatus;
+//  field ( readonly ) TravelId, OverallStatus;
+  field (features : instance) BookingFee;
   association _booking { create; with draft; }
 
   draft action Edit;
@@ -44,9 +47,9 @@ etag master LocalLastChangedAt
 
   //actions
 
-  action acceptTravel result [1] $self;
-  action rejectTravel result [1] $self;
-  action deductDiscount parameter zsa_Fin_A_Discount result [1] $self { default function GetDefaultsFordeductDiscount; }
+  action (features : instance) acceptTravel result [1] $self;
+  action  (features : instance) rejectTravel result [1] $self;
+  action (features : instance)  deductDiscount parameter zsa_Fin_A_Discount result [1] $self { default function GetDefaultsFordeductDiscount; }
 
   determine action validateCustomerid { validation validateCustomer; }
   determine action validateAgency { validation validateAgencyid; }

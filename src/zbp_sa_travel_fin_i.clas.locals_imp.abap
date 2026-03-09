@@ -1,3 +1,70 @@
+CLASS lsc_zsa_travel_fin_i DEFINITION INHERITING FROM cl_abap_behavior_saver.
+
+  PROTECTED SECTION.
+
+    METHODS save_modified REDEFINITION.
+
+ENDCLASS.
+
+CLASS lsc_zsa_travel_fin_i IMPLEMENTATION.
+
+  METHOD save_modified.
+
+    DATA : travel_log        TYPE STANDARD TABLE OF zsa_travel_log,
+           travel_log_create TYPE STANDARD TABLE OF zsa_travel_log,
+           travel_log_update TYPE STANDARD TABLE OF zsa_travel_log.
+
+    IF create-travel IS NOT INITIAL.
+
+      travel_log = CORRESPONDING #( create-travel ).
+
+      LOOP AT travel_log ASSIGNING FIELD-SYMBOL(<lfs_travel_log>).
+
+        <lfs_travel_log>-changing_operation = 'Create'.
+        GET TIME STAMP FIELD  <lfs_travel_log>-created_at.
+        TRY.
+            <lfs_travel_log>-change_id = cl_system_uuid=>create_uuid_x16_static(  ).
+
+          CATCH cx_uuid_error.
+        ENDTRY.
+
+
+        IF create-travel[ 1 ]-%control-BookingFee = cl_abap_behv=>flag_changed.
+
+          <lfs_travel_log>-changed_filed_name = 'Booking Fee'.
+          <lfs_travel_log>-changed_value = create-travel[ 1 ]-BookingFee.
+
+        ENDIF.
+
+        IF create-travel[ 1 ]-%control-AgencyId = cl_abap_behv=>flag_changed.
+
+          <lfs_travel_log>-changed_filed_name = 'Agency Id'.
+          <lfs_travel_log>-changed_value = create-travel[ 1 ]-AgencyId.
+
+        ENDIF.
+        APPEND <lfs_travel_log> TO travel_log_create.
+
+
+      ENDLOOP.
+      MODIFY zsa_travel_log FROM TABLE @travel_log_create.
+
+    ENDIF.
+    IF update-travel IS NOT INITIAL.
+
+
+    ENDIF.
+
+    IF   delete-travel IS NOT INITIAL.
+
+    ENDIF.
+
+
+
+
+  ENDMETHOD.
+
+ENDCLASS.
+
 CLASS lhc_bksuppl DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
@@ -108,19 +175,19 @@ ENDCLASS.
 CLASS lhc_booking IMPLEMENTATION.
 
   METHOD setbookingdate.
-    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
-    ENTITY booking
-    FIELDS ( BookingDate )
-    WITH CORRESPONDING #( keys )
-    RESULT DATA(dates).
-
-    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
-    ENTITY booking
-    UPDATE FIELDS ( BookingDate )
-    WITH VALUE #( FOR date IN dates (
-                 %tky = date-%tky
-                 BookingDate = sy-datum
-                  ) ).
+*    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+*    ENTITY booking
+*    FIELDS ( BookingDate )
+*    WITH CORRESPONDING #( keys )
+*    RESULT DATA(dates).
+*
+*    MODIFY ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+*    ENTITY booking
+*    UPDATE FIELDS ( BookingDate )
+*    WITH VALUE #( FOR date IN dates (
+*                 %tky = date-%tky
+*                 BookingDate = sy-datum
+*                  ) ).
 
 
   ENDMETHOD.
@@ -246,6 +313,8 @@ CLASS lhc_travel DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS validatedates FOR VALIDATE ON SAVE
       IMPORTING keys FOR travel~validatedates.
+    METHODS get_instance_features FOR INSTANCE FEATURES
+      IMPORTING keys REQUEST requested_features FOR travel RESULT result.
 
 ENDCLASS.
 
@@ -582,6 +651,7 @@ CLASS lhc_travel IMPLEMENTATION.
     FOR ALL ENTRIES IN @agencyid
     WHERE agency_id = @agencyid-agency_id
     INTO TABLE @DATA(valid_agencyid).
+
     LOOP AT travels INTO DATA(travel).
 
       APPEND VALUE #( %tky = travel-%tky
@@ -672,4 +742,42 @@ RESULT DATA(travels).
     ENDLOOP.
   ENDMETHOD.
 *
+  METHOD get_instance_features.
+
+    READ ENTITIES OF zsa_travel_fin_i IN LOCAL MODE
+ENTITY travel
+FIELDS ( OverallStatus )
+WITH CORRESPONDING #( keys )
+RESULT DATA(travels).
+
+    result = VALUE #( FOR ls_travel IN travels
+                        ( %tky = ls_travel-%tky
+                          %field-BookingFee = COND #( WHEN ls_travel-OverallStatus = 'A'
+                                                      THEN if_abap_behv=>fc-f-read_only
+                                                      ELSE if_abap_behv=>fc-f-unrestricted )
+
+
+
+
+        %action-acceptTravel =  COND #( WHEN ls_travel-OverallStatus = 'A'
+                                                      THEN if_abap_behv=>fc-o-disabled
+                                                      ELSE if_abap_behv=>fc-o-enabled )
+
+
+       %action-rejectTravel =  COND #( WHEN ls_travel-OverallStatus = 'R'
+                                                      THEN if_abap_behv=>fc-o-disabled
+                                                      ELSE if_abap_behv=>fc-o-enabled )
+
+
+      %action-deductDiscount =  COND #( WHEN ls_travel-OverallStatus = 'A'
+                                                      THEN if_abap_behv=>fc-o-disabled
+                                                      ELSE if_abap_behv=>fc-o-enabled )
+
+
+                                                       ) ).
+
+
+
+  ENDMETHOD.
+
 ENDCLASS.
