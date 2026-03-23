@@ -16,6 +16,6 @@ define view entity ZSA_BK_SUPP_FIN_C as projection on ZSA_BK_SUPP_FIN_I
     CurrencyCode,
     LocalLastChangedAt,
     /* Associations */
-    _booking:redirected to parent zsa_booking_fin_C,
-    _travel: redirected to zsa_travel_fin_C
+    _booking:redirected to parent ZSA_BOOKING_FIN_C,
+    _travel: redirected to ZSA_TRAVEL_FIN_C
 }
